@@ -218,7 +218,7 @@ class Events:
 
         Label(frame, text="Event   Code: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
             place(x=490, y=20, height=30, width=150)
-        Entry(frame, textvariable=self.searchevcode, font=("Arial", 12)).place(x=640, y=20, height=30, width=250)
+        Entry(frame, textvariable=self.searchevcode, font=("Roboto", 12)).place(x=640, y=20, height=30, width=250)
         Label(frame, text="SEARCH", font=("Blinker", 12, "bold"), fg="Gray10", bg="Rosybrown3", relief=RAISED).\
             place(x=890, y=20, height=30, width=80)
         self.searchevcode.trace("w", lambda name, index, mode, sv=self.searchevcode: self.searchevent())
@@ -259,10 +259,10 @@ class Events:
 
         levcode = Label(self.addevframe, text=" EVENT CODE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
                         anchor="w")
-        eevcode = Entry(self.addevframe, textvariable=self.eventcode)
+        eevcode = Entry(self.addevframe, textvariable=self.eventcode, font=("Roboto", 12, "bold"))
         levloc = Label(self.addevframe, text=" LOCATION: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
                        anchor="w")
-        eevloc = Entry(self.addevframe, textvariable=self.loc)
+        eevloc = Entry(self.addevframe, textvariable=self.loc, font=("Roboto", 12, "bold"))
         levdate = Label(self.addevframe, text=" DATE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
                         anchor="w")
         self.ev_date = DateEntry(self.addevframe, background="gray", foreground="snow", date_pattern='mm/dd/yy')
@@ -368,10 +368,10 @@ class Events:
 
         levcode = Label(self.updevframe, text=" EVENT CODE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
                         anchor="w")
-        eevcode = Entry(self.updevframe, textvariable=self.eventcode)
+        eevcode = Entry(self.updevframe, textvariable=self.eventcode, font=("Roboto", 12, "bold"))
         levloc = Label(self.updevframe, text=" LOCATION: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
                        anchor="w")
-        eevloc = Entry(self.updevframe, textvariable=self.loc)
+        eevloc = Entry(self.updevframe, textvariable=self.loc, font=("Roboto", 12, "bold"))
         levdate = Label(self.updevframe, text=" DATE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
                         anchor="w")
         self.ev_date = DateEntry(self.updevframe, background="gray", foreground="snow", date_pattern='mm/dd/yy')
@@ -563,7 +563,7 @@ class Courses:
 
         search_lbl = Label(frame, text="Course   Code: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"),
                            anchor="e")
-        search_ent = Entry(frame, textvariable=self.searchcode, font=("Arial", 12))
+        search_ent = Entry(frame, textvariable=self.searchcode, font=("Roboto", 12))
         searchbtn = Label(frame, text="SEARCH", font=("Blinker", 12, "bold"), fg="Gray10", bg="Rosybrown3",
                           relief=RAISED)
         self.searchcode.trace("w", lambda name, index, mode, sv=self.searchcode: self.searchcourse())
@@ -774,7 +774,7 @@ class Students:
 
         search_lbl = Label(frame, text="ID  Number: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"),
                            anchor="e")
-        search_ent = Entry(frame, textvariable=self.searchid, font=("Arial", 12))
+        search_ent = Entry(frame, textvariable=self.searchid, font=("Roboto", 12))
         searchbtn = Label(frame, text="SEARCH", font=("Blinker", 12, "bold"), fg="Gray10", bg="Rosybrown3",
                           relief=RAISED)
         self.searchid.trace("w", lambda name, index, mode, sv=self.searchid: self.searchstud())
