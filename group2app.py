@@ -7,22 +7,25 @@ from tkcalendar import DateEntry
 from datetime import datetime
 from datetime import time
 import sqlite3
+import random
+import string
 
 
 conn = sqlite3.connect("ListDatabase.db")
 cur = conn.cursor()
 cur.execute("PRAGMA foreign_keys = ON")
+cur.execute("DROP TABLE IF EXISTS ATTENDANCE")
 cur.execute("CREATE TABLE IF NOT EXISTS courses (Course_Code TEXT PRIMARY KEY, Course_Name TEXT)")
 cur.execute("CREATE TABLE IF NOT EXISTS student (ID_Number VARCHAR(8) PRIMARY KEY,"
             "Full_Name VARCHAR(30), Year_Level VARCHAR(10), Course_Code TEXT,"
             "FOREIGN KEY (Course_Code) REFERENCES courses(Course_Code)"
             "   ON UPDATE CASCADE"
             "   ON DELETE CASCADE)")
-cur.execute("CREATE TABLE IF NOT EXISTS EVENT(Event_Code TEXT PRIMARY KEY, Location TEXT,"
-            "Event_Date DATE, Start_time DATE, End_Time DATE)")
-cur.execute("CREATE TABLE IF NOT EXISTS ATTENDANCE(Event_Code TEXT, ID_Number VARCHAR(8),"
-            "Time_In TIME NOT NULL, Time_Out TIME,"
-            "PRIMARY KEY(Event_Code, ID_Number),"
+cur.execute("CREATE TABLE IF NOT EXISTS EVENT(Event_Code TEXT PRIMARY KEY, Event_Name TEXT, Location TEXT,"
+            "Start_Date DATE, End_Date DATE)")
+cur.execute("CREATE TABLE IF NOT EXISTS ATTENDANCE(Event_Code TEXT, ID_Number VARCHAR(8), A_Date DATE,"
+            "Time_In TIME NOT NULL, Time_Out TIME, SIGN TEXT,"
+            "PRIMARY KEY(Event_Code, ID_Number, SIGN),"
             "FOREIGN KEY (Event_Code) REFERENCES EVENT(Event_Code)"
             "   ON UPDATE CASCADE"
             "   ON DELETE CASCADE,"
@@ -43,18 +46,8 @@ def conv_strtime_to_time(strtime):
     return time.fromisoformat(strtime)
 
 
-def timemargin(gtime):
-    hour = int(gtime.strftime("%H"))
-    mins = int(gtime.strftime("%M"))
-    if mins - 30 < 0:
-        adv = time(hour-1, 60+(mins-30)).strftime("%X")
-    else:
-        adv = time(hour, mins-30).strftime("%X")
-    if mins + 30 >= 60:
-        cut = time(hour+1, (mins+30)-60).strftime("%X")
-    else:
-        cut = time(hour, mins+30).strftime("%X")
-    return [adv, cut]
+def dateforsign(sched):
+    return get_cur_date().replace("/", "") + sched[0:2].upper()
 
 
 def toexit(app):
@@ -149,13 +142,13 @@ class AttendanceRecord:
         self.ev_code = StringVar()
         self.ev_code.set("All")
 
-        Label(frame, text="Event   Code: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
-            place(x=30, y=35, height=25, width=90)
+        Label(frame, text="Event   Name: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
+            place(x=30, y=35, height=25, width=100)
         evs = ttk.Combobox(frame, textvariable=self.ev_code, font=("Bodoni MT", 12, "bold"), values=eventlist())
         self.ev_code.trace("w", lambda name, index, mode, sv=self.ev_code: self.displayrecord())
         listframe = Frame(frame, bg="white")
         listframe.place(x=30, y=80, width=940, height=420)
-        evs.place(x=120, y=35, height=25, width=200)
+        evs.place(x=130, y=35, height=25, width=200)
 
         self.recordlist = ttk.Treeview(listframe, columns=("evcode", "evdate", "sid", "sname", "syearcourse",
                                                            "timein", "timeout"))
@@ -196,32 +189,26 @@ class AttendanceRecord:
             for r in rec:
                 cur.execute("SELECT * FROM student WHERE ID_Number=?", (r[1],))
                 s = cur.fetchone()
-                cur.execute("SELECT Event_Date FROM EVENT WHERE Event_Code=?", (r[0],))
-                d = cur.fetchone()[0]
-                tout = r[3]
+                tout = r[4]
                 if tout is not None:
                     tout = conv_strtime_to_time(tout).strftime('%I:%M %p')
-                self.recordlist.insert('', END, values=(r[0], d, r[1], s[1], (s[3] + " (" + s[2] + ")"),
-                                                        conv_strtime_to_time(r[2]).strftime('%I:%M %p'), tout))
+                self.recordlist.insert('', END, values=(r[0], r[2], r[1], s[1], (s[3] + " (" + s[2] + ")"),
+                                                        conv_strtime_to_time(r[3]).strftime('%I:%M %p'), tout))
 
 
 class Events:
     def __init__(self, frame):
-        self.searchevcode = StringVar()
+        self.searchevname = StringVar()
         self.keyev = StringVar()
-        self.eventcode = StringVar()
+        self.eventname = StringVar()
         self.loc = StringVar()
-        self.shour = IntVar()
-        self.smin = IntVar()
-        self.ehour = IntVar()
-        self.emin = IntVar()
 
-        Label(frame, text="Event   Code: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
+        Label(frame, text="Event   Name: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
             place(x=490, y=20, height=30, width=150)
-        Entry(frame, textvariable=self.searchevcode, font=("Roboto", 12)).place(x=640, y=20, height=30, width=250)
+        Entry(frame, textvariable=self.searchevname, font=("Roboto", 12)).place(x=640, y=20, height=30, width=250)
         Label(frame, text="SEARCH", font=("Blinker", 12, "bold"), fg="Gray10", bg="Rosybrown3", relief=RAISED).\
             place(x=890, y=20, height=30, width=80)
-        self.searchevcode.trace("w", lambda name, index, mode, sv=self.searchevcode: self.searchevent())
+        self.searchevname.trace("w", lambda name, index, mode, sv=self.searchevname: self.searchevent())
 
         evfr = Frame(frame)
         evfr.place(x=30, y=80, width=940, height=420)
@@ -246,7 +233,7 @@ class Events:
         self.addevframe.title("Add Event")
         self.addevframe.resizable(False, False)
         width = 435
-        height = 320
+        height = 285
         self.clear()
         self.addevframe.geometry("{}x{}+{}+{}".format(width, height,
                                                       int((self.addevframe.winfo_screenwidth() - width) / 2),
@@ -257,87 +244,51 @@ class Events:
         head = Label(self.addevframe, text="ADD EVENT", fg="Gray10", bg="Rosybrown3", font=("Bodoni MT", 16, "bold"))
         head.place(x=5, y=10, width=440, height=30)
 
-        levcode = Label(self.addevframe, text=" EVENT CODE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                        anchor="w")
-        eevcode = Entry(self.addevframe, textvariable=self.eventcode, font=("Roboto", 12, "bold"))
-        levloc = Label(self.addevframe, text=" LOCATION: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                       anchor="w")
-        eevloc = Entry(self.addevframe, textvariable=self.loc, font=("Roboto", 12, "bold"))
-        levdate = Label(self.addevframe, text=" DATE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                        anchor="w")
-        self.ev_date = DateEntry(self.addevframe, background="gray", foreground="snow", date_pattern='mm/dd/yy')
-        lstarttime = Label(self.addevframe, text=" START TIME: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                           anchor="w")
-        starthour = Spinbox(self.addevframe, from_=0, to_=23,  background="white", foreground="black",
-                            textvariable=self.shour, font=("Bodoni MT", 13,))
-        Label(self.addevframe, text=":", bg="Rosybrown3", fg="Gray10", font=("Bodoni MT", 20, "bold"), anchor="center")\
-            .place(x=170, y=177, height=35, width=10)
-        startmin = Spinbox(self.addevframe, from_=0, to_=59,  background="white", foreground="black",
-                           textvariable=self.smin, font=("Bodoni MT", 13,))
-        Label(self.addevframe, text="(24-Hour Format)", bg="Rosybrown3", fg="Gray10", font=("Bodoni MT", 11),
-              anchor="center").place(x=225, y=180, height=35)
-        lendtime = Label(self.addevframe, text=" END TIME: ",  fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                         anchor="w")
-        Label(self.addevframe, text=":", bg="Rosybrown3", fg="Gray10", font=("Bodoni MT", 20, "bold"), anchor="center")\
-            .place(x=170, y=217, height=35, width=10)
-        ehour = Spinbox(self.addevframe, from_=0, to_=23, textvariable=self.ehour, font=("Bodoni MT", 13,),
-                        background="white", foreground="black")
-        emin = Spinbox(self.addevframe, from_=0, to_=59, background="white", foreground="black", textvariable=self.emin,
-                       font=("Bodoni MT", 13,))
-        Label(self.addevframe, text="(24-Hour Format)", bg="Rosybrown3", fg="Gray10", font=("Bodoni MT", 11),
-              anchor="center").place(x=225, y=220, height=35)
+        Label(self.addevframe, text=" EVENT NAME: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
+              anchor="w").place(x=10, y=60, width=120, height=35)
+        Entry(self.addevframe, textvariable=self.eventname, font=("Roboto", 12, "bold")).\
+            place(x=130, y=60, width=295, height=35)
+        Label(self.addevframe, text=" LOCATION: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
+              anchor="w").place(x=10, y=100, width=120, height=35)
+        Entry(self.addevframe, textvariable=self.loc, font=("Roboto", 12, "bold")).\
+            place(x=130, y=100, width=295, height=35)
+        Label(self.addevframe, text=" START DATE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
+              anchor="w").place(x=10, y=140, width=295, height=35)
+        self.sdate = DateEntry(self.addevframe, background="gray", foreground="snow", date_pattern='mm/dd/yy')
+        self.sdate.place(x=130, y=140, width=295, height=35)
+        Label(self.addevframe, text=" END DATE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
+              anchor="w").place(x=10, y=180, width=295, height=35)
+        self.edate = DateEntry(self.addevframe, background="gray", foreground="snow", date_pattern='mm/dd/yy')
+        self.edate.place(x=130, y=180, width=295, height=35)
 
-        levcode.place(x=10, y=60, width=120, height=35)
-        eevcode.place(x=130, y=60, width=295, height=35)
-        levloc.place(x=10, y=100, width=120, height=35)
-        eevloc.place(x=130, y=100, width=295, height=35)
-        levdate.place(x=10, y=140, width=120, height=35)
-        self.ev_date.place(x=130, y=140, width=295, height=35)
-        lstarttime.place(x=10, y=180, width=120, height=35)
-        starthour.place(x=130, y=180, width=40, height=35)
-        startmin.place(x=180, y=180, width=40, height=35)
-        lendtime.place(x=10, y=220, width=120, height=35)
-        ehour.place(x=130, y=220, width=40, height=35)
-        emin.place(x=180, y=220, width=40, height=35)
-
-        addevbtn = Button(self.addevframe, text="ADD", font=("Blinker", 12, "bold"), command=self.addevent,
-                          activebackground="Mistyrose2", fg="Gray10", bg="Mistyrose2", activeforeground="Gray10")
-        clearevbtn = Button(self.addevframe, text="CLEAR", font=("Blinker", 12, "bold"), command=self.clear,
-                            activebackground="Mistyrose2", fg="Gray10", bg="Mistyrose2", activeforeground="Gray10")
-        addevbtn.place(width=100, height=30, y=275, x=220)
-        clearevbtn.place(width=100, height=30, y=275, x=325)
+        Button(self.addevframe, text="ADD", font=("Blinker", 12, "bold"), command=self.addevent,
+               activebackground="Mistyrose2", fg="Gray10", bg="Mistyrose2", activeforeground="Gray10").\
+            place(width=100, height=30, y=230, x=220)
+        Button(self.addevframe, text="CLEAR", font=("Blinker", 12, "bold"), command=self.clear,
+               activebackground="Mistyrose2", fg="Gray10", bg="Mistyrose2", activeforeground="Gray10")\
+            .place(width=100, height=30, y=230, x=325)
 
     def addevent(self):
-        if self.loc.get() == "" or self.eventcode.get() == "":
+        if self.loc.get() == "" or self.eventname.get() == "":
             messagebox.showerror("Error", "Please fill out all fields")
             return
-        elif get_cur_date() > self.ev_date.get():
+        elif get_cur_date() > self.sdate.get() or get_cur_date() > self.edate.get() or \
+                self.sdate.get() > self.edate.get():
             messagebox.showerror("Error", "Invalid event date!")
             return
         else:
-            try:
-                starttime = time(int(self.shour.get()), int(self.smin.get())).strftime("%X")
-                endtime = time(int(self.ehour.get()), int(self.emin.get())).strftime("%X")
-                if self.ev_date.get() == get_cur_date() and (starttime > endtime or starttime < get_curtime()
-                                                             or endtime < get_curtime()):
-                    messagebox.showerror("Error", "Invalid time provided!")
-                    return
-
-                if messagebox.askyesno("Add Event", "Confirm adding event?"):
-                    try:
-                        cur.execute("INSERT INTO EVENT VALUES (?, ?, ?, ?, ?)", (self.eventcode.get(), self.loc.get(),
-                                                                                 self.ev_date.get(), starttime,
-                                                                                 endtime))
-                        conn.commit()
-                        messagebox.showinfo("Success", "Event added successfully")
-                        self.addevframe.destroy()
-                        self.clear()
-                        self.searchevent()
-                    except sqlite3.IntegrityError:
-                        messagebox.showerror("Error", "Event code already in database!")
-            except ValueError:
-                messagebox.showerror("Error", "Invalid time provided!")
-                return
+            if messagebox.askyesno("Add Event", "Confirm adding event?"):
+                try:
+                    cur.execute("INSERT INTO EVENT VALUES (?, ?, ?, ?, ?)", (
+                        ''.join(random.choices(string.ascii_uppercase + string.digits, k=6)),
+                        self.eventname.get(), self.loc.get(), self.sdate.get(), self.edate.get()))
+                    conn.commit()
+                    messagebox.showinfo("Success", "Event added successfully")
+                    self.addevframe.destroy()
+                    self.clear()
+                    self.searchevent()
+                except sqlite3.IntegrityError:
+                    messagebox.showerror("Error", "Event code already in database!")
 
     def updateevframe(self, event):
         self.keyev.set(event[0])
@@ -345,7 +296,7 @@ class Events:
         self.updevframe.title("Add Event")
         self.updevframe.resizable(False, False)
         width = 435
-        height = 320
+        height = 285
         self.updevframe.geometry("{}x{}+{}+{}".format(width, height,
                                                       int((self.updevframe.winfo_screenwidth() - width) / 2),
                                                       int((self.updevframe.winfo_screenheight() -
@@ -353,116 +304,71 @@ class Events:
         self.updevframe.config(bg="Rosybrown3")
         self.updevframe.grab_set()
         self.clear()
-        stime = conv_strtime_to_time(event[3])
-        etime = conv_strtime_to_time(event[4])
-        self.eventcode.set(event[0])
-        self.loc.set(event[1])
-        self.shour.set(stime.strftime("%H"))
-        self.smin.set(stime.strftime("%M"))
-        self.ehour.set(etime.strftime("%H"))
-        self.emin.set(etime.strftime("%M"))
+        self.eventname.set(event[1])
+        self.loc.set(event[2])
 
-        head = Label(self.updevframe, text="UPDATE EVENT DETAILS", fg="Gray10", bg="Rosybrown3",
-                     font=("Bodoni MT", 16, "bold"))
-        head.place(x=5, y=10, width=440, height=30)
+        Label(self.updevframe, text="UPDATE EVENT DETAILS", fg="Gray10", bg="Rosybrown3",
+              font=("Bodoni MT", 16, "bold")).place(x=5, y=10, width=440, height=30)
 
-        levcode = Label(self.updevframe, text=" EVENT CODE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                        anchor="w")
-        eevcode = Entry(self.updevframe, textvariable=self.eventcode, font=("Roboto", 12, "bold"))
-        levloc = Label(self.updevframe, text=" LOCATION: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                       anchor="w")
-        eevloc = Entry(self.updevframe, textvariable=self.loc, font=("Roboto", 12, "bold"))
-        levdate = Label(self.updevframe, text=" DATE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                        anchor="w")
-        self.ev_date = DateEntry(self.updevframe, background="gray", foreground="snow", date_pattern='mm/dd/yy')
-        lstarttime = Label(self.updevframe, text=" START TIME: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                           anchor="w")
-        starthour = Spinbox(self.updevframe, from_=0, to_=23, background="white", foreground="black",
-                            textvariable=self.shour, font=("Bodoni MT", 13,))
-        Label(self.updevframe, text=":", bg="Rosybrown3", fg="Gray10", font=("Bodoni MT", 20, "bold"), anchor="center")\
-            .place(x=170, y=177, height=35, width=10)
-        startmin = Spinbox(self.updevframe, from_=0, to_=59, background="white", foreground="black",
-                           textvariable=self.smin, font=("Bodoni MT", 13,))
-        Label(self.updevframe, text="(24-Hour Format)", bg="Rosybrown3", fg="Gray10", font=("Bodoni MT", 11),
-              anchor="center").place(x=225, y=180, height=35)
-        lendtime = Label(self.updevframe, text=" END TIME: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
-                         anchor="w")
-        Label(self.updevframe, text=":", bg="Rosybrown3", fg="Gray10", font=("Bodoni MT", 20, "bold"), anchor="center")\
-            .place(x=170, y=217, height=35, width=10)
-        ehour = Spinbox(self.updevframe, from_=0, to_=23, textvariable=self.ehour, font=("Bodoni MT", 13,),
-                        background="white", foreground="black")
-        emin = Spinbox(self.updevframe, from_=0, to_=59, background="white", foreground="black", textvariable=self.emin,
-                       font=("Bodoni MT", 13,))
-        Label(self.updevframe, text="(24-Hour Format)", bg="Rosybrown3", fg="Gray10", font=("Bodoni MT", 11),
-              anchor="center").place(x=225, y=220, height=35)
+        Label(self.updevframe, text=" EVENT NAME: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
+              anchor="w").place(x=10, y=60, width=120, height=35)
+        Entry(self.updevframe, textvariable=self.eventname, font=("Roboto", 12, "bold")).\
+            place(x=130, y=60, width=295, height=35)
+        Label(self.updevframe, text=" LOCATION: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
+              anchor="w").place(x=10, y=100, width=120, height=35)
+        Entry(self.updevframe, textvariable=self.loc, font=("Roboto", 12, "bold")).\
+            place(x=130, y=100, width=295, height=35)
+        Label(self.updevframe, text=" START DATE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
+              anchor="w").place(x=10, y=140, width=120, height=35)
+        self.sdate = DateEntry(self.updevframe, background="gray", foreground="snow", date_pattern='mm/dd/yy')
+        Label(self.updevframe, text=" END DATE: ", fg="pink", bg="black", font=("Bodoni MT", 11, "bold"),
+              anchor="w").place(x=10, y=180, width=120, height=35)
+        self.edate = DateEntry(self.updevframe, background="gray", foreground="snow", date_pattern='mm/dd/yy')
 
-        self.ev_date.set_date(event[2])
+        self.sdate.set_date(event[3])
+        self.edate.set_date(event[4])
 
-        levcode.place(x=10, y=60, width=120, height=35)
-        eevcode.place(x=130, y=60, width=295, height=35)
-        levloc.place(x=10, y=100, width=120, height=35)
-        eevloc.place(x=130, y=100, width=295, height=35)
-        levdate.place(x=10, y=140, width=120, height=35)
-        self.ev_date.place(x=130, y=140, width=295, height=35)
-        lstarttime.place(x=10, y=180, width=120, height=35)
-        starthour.place(x=130, y=180, width=40, height=35)
-        startmin.place(x=180, y=180, width=40, height=35)
-        lendtime.place(x=10, y=220, width=120, height=35)
-        ehour.place(x=130, y=220, width=40, height=35)
-        emin.place(x=180, y=220, width=40, height=35)
+        self.sdate.place(x=130, y=140, width=295, height=35)
+        self.edate.place(x=130, y=180, width=295, height=35)
 
         updevbtn = Button(self.updevframe, text="UPDATE", font=("Blinker", 12, "bold"), command=self.updateevent,
                           activebackground="Mistyrose2", fg="Gray10", bg="Mistyrose2", activeforeground="Gray10")
         clearevbtn = Button(self.updevframe, text="CLEAR", font=("Blinker", 12, "bold"), command=self.clear,
                             activebackground="Mistyrose2", fg="Gray10", bg="Mistyrose2", activeforeground="Gray10")
-        updevbtn.place(width=100, height=30, y=275, x=220)
-        clearevbtn.place(width=100, height=30, y=275, x=325)
+        updevbtn.place(width=100, height=30, y=230, x=220)
+        clearevbtn.place(width=100, height=30, y=230, x=325)
 
     def updateevent(self):
-        if self.loc.get() == "" or self.eventcode.get() == "":
+        if self.loc.get() == "" or self.eventname.get() == "":
             messagebox.showerror("Error", "Please fill out all fields")
             return
-        elif get_cur_date() > self.ev_date.get():
+        elif get_cur_date() > self.sdate.get() or get_cur_date() > self.edate.get() or \
+                self.sdate.get() > self.edate.get():
             messagebox.showerror("Error", "Invalid event date!")
             return
         else:
-            try:
-                starttime = time(self.shour.get(), self.smin.get()).strftime("%X")
-                endtime = time(self.ehour.get(), self.emin.get()).strftime("%X")
-                if self.ev_date.get() == get_cur_date() and (starttime > endtime or starttime < get_curtime()
-                                                             or endtime < get_curtime()):
-                    messagebox.showerror("Error", "Invalid time provided!")
+            if messagebox.askyesno("Update Event Details", "Confirm updating event details?"):
+                try:
+                    if self.keyev.get() != self.eventname.get():
+                        cur.execute("UPDATE EVENT SET Event_Name=?, Location=?, Start_Date=?, End_Date=? "
+                                    "WHERE Event_Code=?",
+                                    (self.eventname.get(), self.loc.get(), self.sdate.get(), self.edate.get(),
+                                     self.keyev.get()))
+                    conn.commit()
+                    self.keyev.set("")
+                    messagebox.showinfo("Success", "Event details updated!")
+                    self.updevframe.destroy()
+                    self.clear()
+                    self.searchevent()
+                except sqlite3.IntegrityError:
+                    messagebox.showerror("Error", "Event already in database")
                     return
 
-                if messagebox.askyesno("Update Event Details", "Confirm updating event details?"):
-                    try:
-                        if self.keyev.get() != self.eventcode.get():
-                            cur.execute("UPDATE EVENT SET Event_Code=?, Location=?, Event_Date=?, Start_time=?, "
-                                        "End_time=? WHERE Event_Code=?",
-                                        (self.eventcode.get(), self.loc.get(), self.ev_date.get(), starttime, endtime,
-                                         self.keyev.get()))
-                        else:
-                            cur.execute("UPDATE EVENT SET Location=?, Event_Date=?, Start_time=?, End_time=? "
-                                        "WHERE Event_Code=?",
-                                        (self.loc.get(), self.ev_date.get(), starttime, endtime, self.eventcode.get()))
-                        conn.commit()
-                        self.keyev.set("")
-                        messagebox.showinfo("Success", "Event details updated!")
-                        self.updevframe.destroy()
-                        self.clear()
-                        self.searchevent()
-                    except sqlite3.IntegrityError:
-                        messagebox.showerror("Error", "Event already in database")
-                        return
-            except ValueError:
-                messagebox.showerror("Error", "Invalid time provided!")
-                return
-
     def searchevent(self):
-        if self.searchevcode.get() == "":
+        if self.searchevname.get() == "":
             cur.execute("SELECT * FROM EVENT")
         else:
-            cur.execute("SELECT * FROM EVENT WHERE Event_Code LIKE ?", ('%' + self.searchevcode.get() + '%',))
+            cur.execute("SELECT * FROM EVENT WHERE Event_Name LIKE ?", ('%' + self.searchevname.get() + '%',))
         events = cur.fetchall()
         for frame in self.evframe.winfo_children():
             frame.destroy()
@@ -481,9 +387,9 @@ class Events:
                 evframe.grid(row=row, column=0, padx=5, pady=(5, 0))
                 labels = Frame(evframe, bg="Rosybrown3")
                 labels.place(x=0, y=0, height=78, width=450)
-                Label(labels, text=event[0], font=('Bodoni MT', 27, 'bold'), bg="Rosybrown3").\
+                Label(labels, text=event[1], font=('Bodoni MT', 27, 'bold'), bg="Rosybrown3").\
                     place(x=10, y=5, height=40)
-                Label(labels, text=(event[1] + " | " + event[2]),
+                Label(labels, text=(event[2] + " | " + event[3] + " - " + event[4]),
                       font=('Bodoni MT', 12, 'bold'), bg="Rosybrown3").place(x=10, y=43, height=30)
                 buttons = Frame(evframe, bg="Rosybrown3")
                 buttons.place(width=265, x=630, y=0, height=78)
@@ -499,20 +405,16 @@ class Events:
                                 bg="Mistyrose2", activebackground="Rosybrown3", activeforeground="Gray10",
                                 command=lambda x=event: Attendance(x))
                 attend.place(x=10, y=43, height=30, width=250)
-                stime = conv_strtime_to_time(event[3])
-                etime = conv_strtime_to_time(event[4])
 
-                if get_cur_date() > event[2] or (get_cur_date() == event[2] and get_curtime() > timemargin(etime)[1]):
+                if get_cur_date() < event[3]:
+                    attend.config(state=DISABLED)
+                elif get_cur_date() > event[3] and get_cur_date() > event[4]:
                     update.config(state=DISABLED)
                     delete.config(state=DISABLED)
                     attend.config(state=DISABLED)
                     Label(buttons, text="EVENT FINISHED!", font=('Bodoni MT', 20, 'bold'), bg="white", fg="green").\
                         place(x=15, y=19, height=40, width=240)
-                elif get_curtime() < timemargin(stime)[0]:
-                    attend.config(state=DISABLED)
-                elif get_cur_date() < event[2]:
-                    attend.config(state=DISABLED)
-                elif get_cur_date() == event[2] and get_curtime() > stime.strftime("%X"):
+                elif get_cur_date() >= event[3]:
                     update.config(state=DISABLED)
                     delete.config(state=DISABLED)
 
@@ -526,12 +428,8 @@ class Events:
             self.searchevent()
 
     def clear(self):
-        self.eventcode.set("")
+        self.eventname.set("")
         self.loc.set("")
-        self.shour.set(0)
-        self.smin.set(0)
-        self.ehour.set(0)
-        self.emin.set(0)
 
 
 class Courses:
@@ -984,6 +882,7 @@ class Attendance:
         self.studid = StringVar()
         self.searchid = StringVar()
         self.event = event
+        self.sched = StringVar()
         width = 980
         height = 630
         self.atevframe.geometry("{}x{}+{}+{}".format(width, height,
@@ -992,22 +891,17 @@ class Attendance:
         self.atevframe.config(bg="Rosybrown3")
         self.atevframe.grab_set()
 
-        stime = conv_strtime_to_time(event[3])
-        etime = conv_strtime_to_time(event[4])
-
         head = Label(self.atevframe, text="ATTENDANCE", fg="Gray10", bg="Rosybrown3", font=("Bodoni MT", 20, "bold"))
         head.place(x=270, y=20, width=440, height=30)
 
         details = Frame(self.atevframe, bg="Rosybrown3")
         details.place(x=10, y=70, width=960, height=75)
-        Label(details, text=("Event Code: " + event[0]), font=("Blinker", 13, "bold"), bg="Mistyrose2", fg="Gray10",
+        Label(details, text=("Event Code: " + event[1]), font=("Blinker", 13, "bold"), bg="Mistyrose2", fg="Gray10",
               anchor="w").place(x=5, y=5, height=30)
-        Label(details, text=("Location: " + event[1]), font=("Blinker", 13, "bold"), bg="Mistyrose2", fg="Gray10",
+        Label(details, text=("Location: " + event[2]), font=("Blinker", 13, "bold"), bg="Mistyrose2", fg="Gray10",
               anchor="w").place(x=5, y=40, height=30)
-        Label(details, text=("Date: " + event[2]), font=("Blinker", 13, "bold"), bg="Mistyrose2", fg="Gray10",
-              anchor="w").place(x=605, y=5, height=30)
-        Label(details, text=("Time: " + stime.strftime('%I:%M %p') + " - " + etime.strftime('%I:%M %p')),
-              font=("Blinker", 13, "bold"), anchor="w", bg="Mistyrose2", fg="Gray10").place(x=605, y=40, height=30)
+        Label(details, text=("Event Dates: " + event[3] + " - " + event[4]), font=("Blinker", 13, "bold"),
+              bg="Mistyrose2", fg="Gray10", anchor="w").place(x=605, y=5, height=30)
 
         searchframe = Frame(self.atevframe, bg="Rosybrown3")
         searchframe.place(x=10, y=185, width=310, height=430)
@@ -1024,6 +918,12 @@ class Attendance:
 
         atlistframe = Frame(self.atevframe, bg="Mistyrose2")
         atlistframe.place(x=330, y=185, width=640, height=430)
+
+        Label(self.atevframe, font=("Blinker", 11, "bold"), text="Schedule: ", bg="Mistyrose2", fg="Gray10").\
+            place(x=330, y=150, width=70, height=25)
+        ttk.Combobox(self.atevframe, font=("Blinker", 11, "bold"), values=["Morning", "Afternoon", "Evening"],
+                     textvariable=self.sched).place(x=400, y=150, width=150, height=25)
+        self.sched.trace("w", lambda name, index, mode, sv=self.sched: self.display_attendance())
 
         Label(self.atevframe, text="ID:", font=("Blinker", 13, "bold"), bg="Mistyrose2", fg="Gray10"). \
             place(x=685, y=150, width=35, height=25)
@@ -1055,13 +955,6 @@ class Attendance:
         self.ldate.place(x=5, y=410, height=20, width=300)
         self.time()
 
-        stime = conv_strtime_to_time(event[3])
-        self.sadv = timemargin(stime)[0]
-        self.scut = timemargin(stime)[1]
-        etime = conv_strtime_to_time(event[4])
-        self.eadv = timemargin(etime)[0]
-        self.ecut = timemargin(etime)[1]
-
         self.display_attendance()
 
     def find_stud(self):
@@ -1084,50 +977,39 @@ class Attendance:
                    command=lambda x=res[0]: self.timein(x)).place(width=100, height=30, y=150, x=190)
 
     def timein(self, stud):
-        if get_curtime() < self.sadv:
-            messagebox.showwarning("Time-In Error", "Time-in not started!")
-            return
-        elif get_curtime() > self.scut:
-            messagebox.showwarning("Time-In Error", "Time-in already finished")
-            return
-        else:
+        if self.sched.get()!="":
             try:
-                cur.execute("INSERT INTO ATTENDANCE (Event_Code, ID_Number, Time_In)  VALUES (?, ?, ?)",
-                            (self.event[0], stud, get_curtime()))
+                cur.execute("INSERT INTO ATTENDANCE (Event_Code, ID_Number, Time_In, A_date, SIGN) "
+                            "VALUES (?, ?, ?, ?, ?)",
+                            (self.event[0], stud, get_curtime(), get_cur_date(), dateforsign(self.sched.get())))
                 conn.commit()
-                messagebox.showinfo("Success", ("Student " + stud + " has timed in!"))
+                messagebox.showinfo("Success", ("Student " + stud + " has signed in!"))
                 self.display_attendance()
                 self.refresh()
             except sqlite3.IntegrityError:
-                messagebox.showwarning("Time-In Error", "Student already has timed in!")
+                messagebox.showwarning("Time-In Error", "Student already has signed in!")
 
     def timeout(self, ev):
         selco = self.attelist.focus()
         cont = self.attelist.item(selco)
         rows = cont['values']
-        if get_curtime() < self.eadv:
-            messagebox.showwarning("Time-Out Error", "Time-out not started!")
-            return
-        elif get_curtime() > self.ecut:
-            messagebox.showwarning("Time-Out Error", "Time-out already finished")
+        if not rows:
+            messagebox.showerror("Error", "Select a student first!")
             return
         else:
-            if not rows:
-                messagebox.showerror("Error", "Select a student first!")
-                return
-            else:
-                cur.execute("SELECT Time_Out FROM ATTENDANCE WHERE Event_Code=? AND ID_Number=?",
-                            (self.event[0], rows[0]))
+            if self.sched.get() != "":
+                cur.execute("SELECT Time_Out FROM ATTENDANCE WHERE Event_Code=? AND ID_Number=? AND SIGN=?",
+                            (self.event[0], rows[0], dateforsign(self.sched.get())))
                 res = cur.fetchone()[0]
                 if res is None:
-                    cur.execute("UPDATE ATTENDANCE SET Time_Out=? WHERE Event_Code=? AND ID_Number=?",
-                                (get_curtime(), self.event[0], rows[0]))
+                    cur.execute("UPDATE ATTENDANCE SET Time_Out=? WHERE Event_Code=? AND ID_Number=? AND SIGN=?",
+                                (get_curtime(), self.event[0], rows[0], dateforsign(self.sched.get())))
                     conn.commit()
-                    messagebox.showinfo("Success", ("Student " + rows[0] + " has timed out!"))
+                    messagebox.showinfo("Success", ("Student " + rows[0] + " has signed out!"))
                     self.display_attendance()
                     self.refresh()
                 else:
-                    messagebox.showwarning("Time-Out Error", "Student has already timed out!")
+                    messagebox.showwarning("Time-Out Error", "Student has already signed out!")
                     return
 
     def refresh(self):
@@ -1135,18 +1017,19 @@ class Attendance:
         self.resFrame.place_forget()
 
     def time(self):
-        string = datetime.now().strftime('%I:%M:%S %p')
+        curtime = datetime.now().strftime('%I:%M:%S %p')
         self.ldate.config(text=datetime.now().strftime("%a, %b %d %Y"))
-        self.clock.config(text=string)
+        self.clock.config(text=curtime)
         self.clock.after(200, self.time)
 
     def display_attendance(self):
         self.attelist.delete(*self.attelist.get_children())
         if self.searchid.get() == "":
-            cur.execute("SELECT * FROM ATTENDANCE WHERE Event_Code=?", (self.event[0],))
+            cur.execute("SELECT * FROM ATTENDANCE WHERE Event_Code=? AND SIGN=?",
+                        (self.event[0], dateforsign(self.sched.get())))
         else:
-            cur.execute("SELECT * FROM ATTENDANCE WHERE Event_Code=? AND ID_Number LIKE ?",
-                        (self.event[0], '%' + self.searchid.get() + '%',))
+            cur.execute("SELECT * FROM ATTENDANCE WHERE Event_Code=? AND SIGN=? AND ID_Number LIKE ?",
+                        (self.event[0], dateforsign(self.sched.get()), '%' + self.searchid.get() + '%',))
         allrec = cur.fetchall()
         if not allrec:
             return
@@ -1154,10 +1037,10 @@ class Attendance:
             for x in allrec:
                 cur.execute("SELECT Full_Name FROM student WHERE ID_Number=?", (x[1],))
                 sname = cur.fetchone()[0]
-                tout = x[3]
+                tout = x[4]
                 if tout is not None:
                     tout = conv_strtime_to_time(tout).strftime('%I:%M %p')
-                self.attelist.insert('', END, values=(x[1], sname, conv_strtime_to_time(x[2]).strftime('%I:%M %p'),
+                self.attelist.insert('', END, values=(x[1], sname, conv_strtime_to_time(x[3]).strftime('%I:%M %p'),
                                                       tout))
 
 
