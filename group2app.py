@@ -14,7 +14,6 @@ import string
 conn = sqlite3.connect("ListDatabase.db")
 cur = conn.cursor()
 cur.execute("PRAGMA foreign_keys = ON")
-cur.execute("DROP TABLE IF EXISTS ATTENDANCE")
 cur.execute("CREATE TABLE IF NOT EXISTS courses (Course_Code TEXT PRIMARY KEY, Course_Name TEXT)")
 cur.execute("CREATE TABLE IF NOT EXISTS student (ID_Number VARCHAR(8) PRIMARY KEY,"
             "Full_Name VARCHAR(30), Year_Level VARCHAR(10), Course_Code TEXT,"
