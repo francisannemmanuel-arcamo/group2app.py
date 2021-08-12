@@ -148,16 +148,19 @@ class AttendanceRecord:
         self.ev_code.trace("w", lambda name, index, mode, sv=self.ev_code: self.displayrecord())
         listframe = Frame(frame, bg="white")
         listframe.place(x=30, y=80, width=940, height=420)
-        evs.place(x=80, y=35, height=25, width=200)
+        evs.place(x=80, y=35, height=25, width=100)
+        self.evname = Label(frame, text="", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"),
+                            anchor="w")
+        self.evname.place_forget()
 
-        self.recordlist = ttk.Treeview(listframe, columns=("evcode", "evdate", "sid", "sname", "syearcourse",
+        self.recordlist = ttk.Treeview(listframe, columns=("evname", "evdate", "sid", "sname", "syearcourse",
                                                            "timein", "timeout"))
 
         ry = Scrollbar(listframe, orient=VERTICAL)
         ry.config(command=self.recordlist.yview)
         ry.pack(side=RIGHT, fill=Y)
         self.recordlist.config(yscrollcommand=ry.set)
-        self.recordlist.heading("evcode", text="Event Code")
+        self.recordlist.heading("evname", text="Event Name")
         self.recordlist.heading("evdate", text="Event Date")
         self.recordlist.heading("sid", text="ID Number")
         self.recordlist.heading("sname", text="Name")
@@ -165,7 +168,7 @@ class AttendanceRecord:
         self.recordlist.heading("timein", text="Time In")
         self.recordlist.heading("timeout", text="Time Out")
         self.recordlist['show'] = 'headings'
-        self.recordlist.column("evcode", width=145, anchor="center")
+        self.recordlist.column("evname", width=145, anchor="center")
         self.recordlist.column("evdate", width=70, anchor="center")
         self.recordlist.column("sid", width=80, anchor="center")
         self.recordlist.column("sname", width=350, anchor="w")
@@ -183,16 +186,26 @@ class AttendanceRecord:
         else:
             cur.execute("SELECT * FROM ATTENDANCE WHERE Event_Code=?", (self.ev_code.get(),))
         rec = cur.fetchall()
+        if not self.ev_code.get() == "All" or self.ev_code.get() == "":
+            cur.execute("SELECT * FROM EVENT WHERE Event_Code=?", (self.ev_code.get(),))
+            evrec = cur.fetchone()
+            self.evname.config(text=("Event Name:   " + evrec[1]))
+            self.evname.place(x=200, y=35, height=25)
+        else:
+            self.evname.place_forget()
+
         if not rec:
             return
         else:
             for r in rec:
+                cur.execute("SELECT Event_Name FROM EVENT WHERE Event_Code=?", (r[0],))
+                evname = cur.fetchone()
                 cur.execute("SELECT * FROM student WHERE ID_Number=?", (r[1],))
                 s = cur.fetchone()
                 tout = r[4]
                 if tout is not None:
                     tout = conv_strtime_to_time(tout).strftime('%I:%M %p')
-                self.recordlist.insert('', END, values=(r[0], r[2], r[1], s[1], (s[3] + " (" + s[2] + ")"),
+                self.recordlist.insert('', END, values=(evname[0], r[2], r[1], s[1], (s[3] + " (" + s[2] + ")"),
                                                         conv_strtime_to_time(r[3]).strftime('%I:%M %p'), tout))
 
 
