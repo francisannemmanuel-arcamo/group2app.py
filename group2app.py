@@ -6,8 +6,9 @@ from tkinter import messagebox
 from tkcalendar import DateEntry
 from datetime import datetime
 from datetime import time
-import sqlite3
+
 import random
+import sqlite3
 import string
 
 
@@ -141,13 +142,13 @@ class AttendanceRecord:
         self.ev_code = StringVar()
         self.ev_code.set("All")
 
-        Label(frame, text="Event   Name: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
-            place(x=30, y=35, height=25, width=100)
+        Label(frame, text="Event : ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
+            place(x=30, y=35, height=25, width=50)
         evs = ttk.Combobox(frame, textvariable=self.ev_code, font=("Bodoni MT", 12, "bold"), values=eventlist())
         self.ev_code.trace("w", lambda name, index, mode, sv=self.ev_code: self.displayrecord())
         listframe = Frame(frame, bg="white")
         listframe.place(x=30, y=80, width=940, height=420)
-        evs.place(x=130, y=35, height=25, width=200)
+        evs.place(x=80, y=35, height=25, width=200)
 
         self.recordlist = ttk.Treeview(listframe, columns=("evcode", "evdate", "sid", "sname", "syearcourse",
                                                            "timein", "timeout"))
@@ -202,7 +203,7 @@ class Events:
         self.eventname = StringVar()
         self.loc = StringVar()
 
-        Label(frame, text="Event   Name: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
+        Label(frame, text="Event: ", fg="Gray10", bg="Mistyrose2", font=("Blinker", 12, "bold"), anchor="e").\
             place(x=490, y=20, height=30, width=150)
         Entry(frame, textvariable=self.searchevname, font=("Roboto", 12)).place(x=640, y=20, height=30, width=250)
         Label(frame, text="SEARCH", font=("Blinker", 12, "bold"), fg="Gray10", bg="Rosybrown3", relief=RAISED).\
